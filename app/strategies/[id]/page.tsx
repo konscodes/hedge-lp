@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -11,33 +10,13 @@ import { StrategySnapshots } from "@/components/StrategySnapshots"
 import { StrategyCharts } from "@/components/StrategyCharts"
 import { StrategyConfig } from "@/components/StrategyConfig"
 import { StrategyOverviewButton } from "@/components/StrategyOverviewButton"
+import { useStrategy } from "@/lib/hooks"
 
 export default function StrategyPage() {
   const params = useParams()
   const router = useRouter()
-  const [strategy, setStrategy] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (params.id) {
-      fetchStrategy()
-    }
-  }, [params.id])
-
-  const fetchStrategy = async () => {
-    try {
-      const res = await fetch(`/api/strategies/${params.id}`)
-      if (!res.ok) {
-        throw new Error("Failed to fetch strategy")
-      }
-      const data = await res.json()
-      setStrategy(data)
-    } catch (error) {
-      console.error("Error fetching strategy:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const strategyId = params.id as string
+  const { strategy, loading, refetch } = useStrategy(strategyId)
 
   if (loading) {
     return (
@@ -90,19 +69,19 @@ export default function StrategyPage() {
         </div>
 
         <TabsContent value="overview" className="mt-6">
-          <StrategyOverview strategy={strategy} onUpdate={fetchStrategy} />
+          <StrategyOverview strategy={strategy} onUpdate={refetch} />
         </TabsContent>
 
         <TabsContent value="snapshots" className="mt-6">
-          <StrategySnapshots strategyId={strategy.id} />
+          <StrategySnapshots strategyId={strategyId} />
         </TabsContent>
 
         <TabsContent value="charts" className="mt-6">
-          <StrategyCharts strategyId={strategy.id} />
+          <StrategyCharts strategyId={strategyId} />
         </TabsContent>
 
         <TabsContent value="config" className="mt-6">
-          <StrategyConfig strategy={strategy} onUpdate={fetchStrategy} />
+          <StrategyConfig strategy={strategy} onUpdate={refetch} />
         </TabsContent>
       </Tabs>
     </div>

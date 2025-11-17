@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { SnapshotForm } from "./SnapshotForm"
 import {
@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useSnapshots } from "@/lib/hooks"
 
 interface StrategyOverviewButtonProps {
   strategy: any
@@ -17,18 +18,13 @@ interface StrategyOverviewButtonProps {
 
 export function StrategyOverviewButton({ strategy }: StrategyOverviewButtonProps) {
   const [showSnapshotForm, setShowSnapshotForm] = useState(false)
-  const [lastSnapshot, setLastSnapshot] = useState<any>(null)
-
-  useEffect(() => {
-    if (strategy?.snapshots && strategy.snapshots.length > 0) {
-      setLastSnapshot(strategy.snapshots[0])
-    } else {
-      setLastSnapshot(null)
-    }
-  }, [strategy])
+  const { snapshots, refetch } = useSnapshots(strategy.id)
+  const lastSnapshot = snapshots.length > 0 ? snapshots[0] : null
 
   const handleSnapshotSaved = () => {
     setShowSnapshotForm(false)
+    refetch()
+    // Trigger a page refresh to update all components
     window.location.reload()
   }
 

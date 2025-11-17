@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { HelpCircle } from "lucide-react"
+import * as storage from "@/lib/storage"
 
 interface StrategyFormProps {
   strategy?: any
@@ -57,7 +58,11 @@ export function StrategyForm({ strategy, onSuccess }: StrategyFormProps) {
 
     try {
       const payload = {
-        ...formData,
+        name: formData.name,
+        token1: formData.token1,
+        token2: formData.token2,
+        lpProtocol: formData.lpProtocol,
+        perpVenue: formData.perpVenue,
         startingCapitalUsd: parseFloat(parseCurrency(formData.startingCapitalUsd)),
         openDate: formData.openDate,
         pa: parseFloat(formData.pa),
@@ -67,23 +72,17 @@ export function StrategyForm({ strategy, onSuccess }: StrategyFormProps) {
         crossPositionRebalanceThresholdPct: parseFloat(parsePercentage(formData.crossPositionRebalanceThresholdPct)) / 100,
       }
 
-      const url = strategy
-        ? `/api/strategies/${strategy.id}`
-        : "/api/strategies"
-      const method = strategy ? "PATCH" : "POST"
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || "Failed to save strategy")
+      let data
+      if (strategy) {
+        // Update existing strategy
+        data = storage.updateStrategy(strategy.id, payload)
+        if (!data) {
+          throw new Error("Failed to update strategy")
+        }
+      } else {
+        // Create new strategy
+        data = storage.createStrategy(payload)
       }
-
-      const data = await res.json()
       
       if (onSuccess) {
         onSuccess()

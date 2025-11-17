@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   Table,
   TableBody,
@@ -23,45 +23,17 @@ import { formatPositionSize } from "@/lib/hedgeMath"
 import { format } from "date-fns"
 import { Pencil } from "lucide-react"
 import { SnapshotForm } from "./SnapshotForm"
+import { useSnapshots } from "@/lib/hooks"
+import { useStrategy } from "@/lib/hooks"
 
 interface StrategySnapshotsProps {
   strategyId: string
 }
 
 export function StrategySnapshots({ strategyId }: StrategySnapshotsProps) {
-  const [snapshots, setSnapshots] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [strategy, setStrategy] = useState<any>(null)
+  const { snapshots, loading, refetch } = useSnapshots(strategyId)
+  const { strategy } = useStrategy(strategyId)
   const [editingSnapshot, setEditingSnapshot] = useState<any | null>(null)
-
-  useEffect(() => {
-    fetchStrategy()
-    fetchSnapshots()
-  }, [strategyId])
-
-  const fetchStrategy = async () => {
-    try {
-      const res = await fetch(`/api/strategies/${strategyId}`)
-      if (!res.ok) throw new Error("Failed to fetch strategy")
-      const data = await res.json()
-      setStrategy(data)
-    } catch (error) {
-      console.error("Error fetching strategy:", error)
-    }
-  }
-
-  const fetchSnapshots = async () => {
-    try {
-      const res = await fetch(`/api/strategies/${strategyId}/snapshots`)
-      if (!res.ok) throw new Error("Failed to fetch snapshots")
-      const data = await res.json()
-      setSnapshots(data)
-    } catch (error) {
-      console.error("Error fetching snapshots:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const getRebalanceBadge = (reason: string) => {
     if (reason === "NONE") return null
@@ -213,7 +185,7 @@ export function StrategySnapshots({ strategyId }: StrategySnapshotsProps) {
               snapshotToEdit={editingSnapshot}
               onSuccess={() => {
                 setEditingSnapshot(null)
-                fetchSnapshots()
+                refetch()
               }}
               onCancel={() => setEditingSnapshot(null)}
             />

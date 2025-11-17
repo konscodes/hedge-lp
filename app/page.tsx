@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,44 +14,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { StrategyForm } from "@/components/StrategyForm"
-
-interface Strategy {
-  id: string
-  name: string
-  token1: string
-  token2: string
-  lpProtocol: string
-  perpVenue: string
-  createdAt: string
-  _count?: {
-    snapshots: number
-  }
-}
+import { useStrategies } from "@/lib/hooks"
 
 export default function Home() {
-  const [strategies, setStrategies] = useState<Strategy[]>([])
-  const [loading, setLoading] = useState(true)
+  const { strategies, loading, refetch } = useStrategies()
   const [dialogOpen, setDialogOpen] = useState(false)
-
-  useEffect(() => {
-    fetchStrategies()
-  }, [])
-
-  const fetchStrategies = async () => {
-    try {
-      const res = await fetch("/api/strategies")
-      const data = await res.json()
-      setStrategies(data)
-    } catch (error) {
-      console.error("Error fetching strategies:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleStrategyCreated = () => {
     setDialogOpen(false)
-    fetchStrategies()
+    refetch()
   }
 
   if (loading) {
@@ -124,7 +95,7 @@ export default function Home() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Snapshots:</span>
-                      <span>{strategy._count?.snapshots || 0}</span>
+                      <span>{(strategy as any)._count?.snapshots || 0}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Created:</span>

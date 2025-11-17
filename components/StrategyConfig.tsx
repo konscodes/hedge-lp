@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { StrategyForm } from "./StrategyForm"
 import { Trash2 } from "lucide-react"
+import * as storage from "@/lib/storage"
 
 interface StrategyConfigProps {
   strategy: any
@@ -36,15 +37,7 @@ export function StrategyConfig({ strategy, onUpdate }: StrategyConfigProps) {
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      const res = await fetch(`/api/strategies/${strategy.id}`, {
-        method: "DELETE",
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || "Failed to delete strategy")
-      }
-
+      storage.deleteStrategy(strategy.id)
       // Redirect to home page after successful deletion
       router.push("/")
     } catch (error) {

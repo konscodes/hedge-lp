@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { calculateLPValueUsd } from "@/lib/hedgeMath"
+import * as storage from "@/lib/storage"
+import { calculateSnapshot } from "@/lib/snapshotCalculations"
 
 interface SnapshotFormProps {
   strategy: any
@@ -115,10 +117,15 @@ export function SnapshotForm({ strategy, lastSnapshot, onSuccess, isInitial = fa
         return
       }
 
+      // Calculate LP price if not provided
+      const calculatedLpPrice = formData.lpPrice 
+        ? parseFloat(formData.lpPrice) 
+        : (parseFloat(formData.token1Price) / parseFloat(formData.token2Price))
+
       const payload = {
         token1Price: parseFloat(formData.token1Price),
         token2Price: parseFloat(formData.token2Price),
-        lpPrice: formData.lpPrice ? parseFloat(formData.lpPrice) : undefined,
+        lpPrice: calculatedLpPrice,
         lpToken1Amount: parseFloat(formData.lpToken1Amount),
         lpToken2Amount: parseFloat(formData.lpToken2Amount),
         lpToken1FeesEarned: parseFloat(formData.lpToken1FeesEarned) || 0,
@@ -149,28 +156,50 @@ export function SnapshotForm({ strategy, lastSnapshot, onSuccess, isInitial = fa
         return
       }
 
-      // Remove undefined values from payload
-      const cleanPayload = Object.fromEntries(
-        Object.entries(payload).filter(([_, value]) => value !== undefined)
-      )
+      // Get last snapshot for calculations
+      const snapshots = storage.getSnapshots(strategy.id)
+      const lastSnapshot = snapshots.length > 0 
+        ? snapshots.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+        : null
 
-      const url = snapshotToEdit
-        ? `/api/strategies/${strategy.id}/snapshots/${snapshotToEdit.id}`
-        : `/api/strategies/${strategy.id}/snapshots`
-      const method = snapshotToEdit ? "PATCH" : "POST"
+      // Calculate all derived fields
+      const calculations = calculateSnapshot(strategy, {
+        token1Price: payload.token1Price,
+        token2Price: payload.token2Price,
+        lpPrice: calculatedLpPrice,
+        lpToken1Amount: payload.lpToken1Amount,
+        lpToken2Amount: payload.lpToken2Amount,
+        lpToken1FeesEarned: payload.lpToken1FeesEarned,
+        lpToken2FeesEarned: payload.lpToken2FeesEarned,
+        hedge1PositionSize: payload.hedge1PositionSize,
+        hedge1EntryPrice: payload.hedge1EntryPrice,
+        hedge1Leverage: payload.hedge1Leverage,
+        hedge1MarginUsd: payload.hedge1MarginUsd,
+        hedge1FundingPaidUsd: payload.hedge1FundingPaidUsd,
+        hedge1LiquidationPrice: payload.hedge1LiquidationPrice,
+        hedge2PositionSize: payload.hedge2PositionSize,
+        hedge2EntryPrice: payload.hedge2EntryPrice,
+        hedge2Leverage: payload.hedge2Leverage,
+        hedge2MarginUsd: payload.hedge2MarginUsd,
+        hedge2FundingPaidUsd: payload.hedge2FundingPaidUsd,
+        hedge2LiquidationPrice: payload.hedge2LiquidationPrice,
+        accountEquityUsd: payload.accountEquityUsd,
+      }, snapshotToEdit || lastSnapshot)
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cleanPayload),
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        const errorMessage = error.details 
-          ? `${error.error || "Failed to save snapshot"}: ${error.details}`
-          : error.error || "Failed to save snapshot"
-        throw new Error(errorMessage)
+      // Create or update snapshot
+      if (snapshotToEdit) {
+        // Update existing snapshot
+        storage.updateSnapshot(snapshotToEdit.id, {
+          ...payload,
+          ...calculations,
+        })
+      } else {
+        // Create new snapshot
+        storage.createSnapshot({
+          strategyId: strategy.id,
+          ...payload,
+          ...calculations,
+        })
       }
 
       if (onSuccess) {

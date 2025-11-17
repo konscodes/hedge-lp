@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import {
   LineChart,
   Line,
@@ -18,45 +17,19 @@ import {
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { format } from "date-fns"
+import { useSnapshots } from "@/lib/hooks"
+import { useStrategy } from "@/lib/hooks"
 
 interface StrategyChartsProps {
   strategyId: string
 }
 
 export function StrategyCharts({ strategyId }: StrategyChartsProps) {
-  const [snapshots, setSnapshots] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [strategy, setStrategy] = useState<any>(null)
-
-  useEffect(() => {
-    fetchStrategy()
-    fetchSnapshots()
-  }, [strategyId])
-
-  const fetchStrategy = async () => {
-    try {
-      const res = await fetch(`/api/strategies/${strategyId}`)
-      if (!res.ok) throw new Error("Failed to fetch strategy")
-      const data = await res.json()
-      setStrategy(data)
-    } catch (error) {
-      console.error("Error fetching strategy:", error)
-    }
-  }
-
-  const fetchSnapshots = async () => {
-    try {
-      const res = await fetch(`/api/strategies/${strategyId}/snapshots?limit=1000`)
-      if (!res.ok) throw new Error("Failed to fetch snapshots")
-      const data = await res.json()
-      // Reverse to show chronological order
-      setSnapshots(data.reverse())
-    } catch (error) {
-      console.error("Error fetching snapshots:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { snapshots, loading } = useSnapshots(strategyId)
+  const { strategy } = useStrategy(strategyId)
+  
+  // Reverse to show chronological order for charts
+  const chartSnapshots = [...snapshots].reverse()
 
   if (loading) {
     return <div className="text-center py-8">Loading charts...</div>
@@ -77,7 +50,7 @@ export function StrategyCharts({ strategyId }: StrategyChartsProps) {
     )
   }
 
-  const chartData = snapshots.map((s) => ({
+  const chartData = chartSnapshots.map((s) => ({
     timestamp: format(new Date(s.timestamp), "MMM d HH:mm"),
     date: new Date(s.timestamp).getTime(),
     lpPnl: s.lpPnlUsd,
