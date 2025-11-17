@@ -3,11 +3,12 @@
 /**
  * Migration script that handles both SQLite (file://) and Turso (libsql://) URLs
  * 
- * For Turso: Prisma migrations work, but we need to ensure the connection is valid
- * The LibSQL adapter handles the connection at runtime in lib/prisma.ts
+ * For Turso: Use `prisma db push` instead of `migrate deploy` because:
+ * - Prisma's migrate deploy validates SQLite URLs require file:// protocol
+ * - db push works with LibSQL URLs and applies schema directly
+ * - Perfect for fresh databases or when you don't need migration history
  * 
- * Note: Prisma's SQLite provider validates URL format, but Turso migrations
- * work through Prisma's migration system when using the LibSQL adapter
+ * For local SQLite: Use `migrate deploy` to maintain migration history
  */
 
 const { execSync } = require('child_process');
@@ -23,19 +24,30 @@ const isTurso = databaseUrl.startsWith('libsql://');
 console.log(`Database URL detected: ${isTurso ? 'Turso (LibSQL)' : 'Local SQLite'}`);
 
 try {
-  // For both Turso and SQLite, Prisma migrations work the same way
-  // The LibSQL adapter (configured in lib/prisma.ts) handles Turso connections at runtime
-  // Prisma migrations will work because Turso supports SQLite-compatible migrations
-  console.log('Running Prisma migrations...');
-  
-  execSync('npx prisma migrate deploy', {
-    stdio: 'inherit',
-    env: process.env,
-  });
-  
-  console.log('✅ Migrations completed successfully');
+  if (isTurso) {
+    // For Turso, use db push which works with LibSQL URLs
+    // This applies the schema directly without migration validation
+    console.log('Using Prisma db push for Turso (fresh schema)...');
+    
+    execSync('npx prisma db push --accept-data-loss', {
+      stdio: 'inherit',
+      env: process.env,
+    });
+    
+    console.log('✅ Schema pushed to Turso successfully');
+  } else {
+    // For local SQLite, use migrations to maintain history
+    console.log('Using Prisma migrations for local SQLite...');
+    
+    execSync('npx prisma migrate deploy', {
+      stdio: 'inherit',
+      env: process.env,
+    });
+    
+    console.log('✅ Migrations completed successfully');
+  }
 } catch (error) {
-  console.error('❌ Migration failed');
+  console.error('❌ Schema deployment failed');
   console.error('Error details:', error.message);
   
   if (isTurso) {
@@ -43,7 +55,7 @@ try {
     console.error('   1. Verify your DATABASE_URL is correct (should start with libsql://)');
     console.error('   2. Check that your Turso database is active');
     console.error('   3. Ensure you have the correct authentication token if required');
-    console.error('   4. Try running migrations manually: npx prisma migrate deploy');
+    console.error('   4. Try running manually: npx prisma db push --accept-data-loss');
   }
   
   process.exit(1);
