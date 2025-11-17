@@ -15,6 +15,8 @@ function getPrismaClient(): PrismaClient {
     throw new Error('DATABASE_URL environment variable is not set')
   }
 
+  console.log('🔍 getPrismaClient called, DATABASE_URL:', databaseUrl.substring(0, 30) + '...')
+
   if (isTurso) {
     // For Turso, use LibSQL adapter
     try {
@@ -36,33 +38,34 @@ function getPrismaClient(): PrismaClient {
       const libsql = createClient(libsqlConfig)
       const adapter = new PrismaLibSQL(libsql as any)
       
-      // WORKAROUND: Prisma validates URL format based on schema provider (sqlite expects file://)
-      // But we're using libsql://. Set a dummy file:// URL for Prisma validation,
-      // then the adapter will use the real libsql:// URL from the LibSQL client
-      // Save original URL
+      // CRITICAL: Prisma reads DATABASE_URL from process.env when queries execute
+      // Ensure it's set before creating PrismaClient AND keep it set
+      // The adapter uses LibSQL client's URL, but Prisma still validates DATABASE_URL
+      // Use a valid file:// URL for validation (Prisma expects this for sqlite provider)
       const originalUrl = process.env.DATABASE_URL
       
-      // Set dummy file:// URL for Prisma validation (it will validate but adapter uses real URL)
-      process.env.DATABASE_URL = 'file:./dummy.db'
+      // Set valid file:// URL - Prisma will validate this format
+      // The adapter will use the LibSQL client's URL for actual connection
+      process.env.DATABASE_URL = 'file:./.tmp/dummy.db'
       
-      console.log('🔍 Initializing PrismaClient with adapter')
-      console.log('   Real URL:', databaseUrl.substring(0, 30) + '...')
-      console.log('   Dummy URL for validation:', process.env.DATABASE_URL)
+      console.log('🔍 Creating PrismaClient with adapter')
+      console.log('   LibSQL URL:', databaseUrl.substring(0, 30) + '...')
+      console.log('   Validation URL:', process.env.DATABASE_URL)
       
-      // When using an adapter, Prisma validates URL format but adapter uses LibSQL client's URL
       const client = new PrismaClient({
         adapter: adapter,
         log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
       })
       
-      // Restore original URL
-      process.env.DATABASE_URL = originalUrl
+      // IMPORTANT: Keep the file:// URL set - Prisma may read it during queries
+      // Don't restore original URL - Prisma needs valid format for validation
+      // The adapter handles the actual connection using LibSQL client
       
       console.log('✅ PrismaClient created with LibSQL adapter')
       return client
     } catch (error) {
       console.error('❌ Error setting up LibSQL adapter:', error)
-      console.error('DATABASE_URL at error time:', process.env.DATABASE_URL?.substring(0, 30))
+      console.error('DATABASE_URL at error time:', process.env.DATABASE_URL)
       throw new Error(`Failed to initialize LibSQL adapter: ${error instanceof Error ? error.message : String(error)}`)
     }
   } else {
@@ -73,12 +76,26 @@ function getPrismaClient(): PrismaClient {
   }
 }
 
-// Use singleton pattern for serverless (reuse client across invocations)
-export const prisma = globalForPrisma.prisma ?? getPrismaClient()
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma
-} else {
-  // In production (serverless), also cache to avoid re-initialization
-  globalForPrisma.prisma = prisma
+// Lazy initialization - only create client when first accessed
+// This ensures environment variables are available at runtime
+function getPrisma(): PrismaClient {
+  if (globalForPrisma.prisma) {
+    return globalForPrisma.prisma
+  }
+  
+  const client = getPrismaClient()
+  globalForPrisma.prisma = client
+  return client
 }
+
+// Export a getter that initializes on first access
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getPrisma()
+    const value = (client as any)[prop]
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    return value
+  }
+}) as PrismaClient
