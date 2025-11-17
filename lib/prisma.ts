@@ -15,6 +15,13 @@ function getPrismaClient(): PrismaClient {
     throw new Error('DATABASE_URL environment variable is not set')
   }
 
+  // CRITICAL: Ensure DATABASE_URL is explicitly set in process.env
+  // Prisma reads it from process.env even when using an adapter
+  // This is necessary because Prisma validates the URL format before delegating to adapter
+  if (process.env.DATABASE_URL !== databaseUrl) {
+    process.env.DATABASE_URL = databaseUrl
+  }
+
   if (isTurso) {
     // For Turso, use LibSQL adapter
     try {
@@ -36,14 +43,21 @@ function getPrismaClient(): PrismaClient {
       const libsql = createClient(libsqlConfig)
       const adapter = new PrismaLibSQL(libsql as any)
       
+      // Debug: Log to verify DATABASE_URL is available
+      console.log('🔍 Initializing PrismaClient with adapter, DATABASE_URL:', databaseUrl.substring(0, 30) + '...')
+      
       // When using an adapter, Prisma reads DATABASE_URL from process.env automatically
       // The adapter handles the actual connection
-      return new PrismaClient({
+      const client = new PrismaClient({
         adapter: adapter,
         log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
       })
+      
+      console.log('✅ PrismaClient created with LibSQL adapter')
+      return client
     } catch (error) {
       console.error('❌ Error setting up LibSQL adapter:', error)
+      console.error('DATABASE_URL at error time:', process.env.DATABASE_URL?.substring(0, 30))
       throw new Error(`Failed to initialize LibSQL adapter: ${error instanceof Error ? error.message : String(error)}`)
     }
   } else {
