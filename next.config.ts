@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Ensure Prisma client is properly bundled
+  // Ensure Prisma client and LibSQL adapter are properly bundled
   experimental: {
-    serverComponentsExternalPackages: ['@prisma/client'],
+    serverComponentsExternalPackages: ['@prisma/client', '@prisma/adapter-libsql', '@libsql/client'],
   },
 };
 
