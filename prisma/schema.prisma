@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Strategy {
+  id                        String   @id @default(cuid())
+  name                      String
+  token1                    String   // e.g., "BNB"
+  token2                    String   // e.g., "ASTER"
+  lpProtocol                String   // e.g., "PancakeSwap V3"
+  perpVenue                 String   // e.g., "Hyperliquid"
+  
+  // Strategy-level configuration
+  startingCapitalUsd        Float    // Total capital allocated ($100 in example)
+  openDate                  DateTime // When strategy was opened
+  
+  // LP Configuration
+  pa                        Float    // Lower price bound
+  pb                        Float    // Upper price bound
+  
+  // Rebalance Triggers
+  priceMoveThresholdPct     Float    @default(0.02)  // 2%
+  deltaDriftThresholdPct    Float    @default(0.10)  // 10%
+  crossPositionRebalanceThresholdPct Float @default(0.20) // 20% - trigger for cross-position rebalancing
+  
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  
+  snapshots                 Snapshot[]
+  
+  @@index([token1, token2])
+}
+
+enum RebalanceReason {
+  NONE
+  PRICE_MOVE
+  DELTA_DRIFT
+  BOTH
+  MANUAL
+  CROSS_POSITION
+}
+
+model Snapshot {
+  id                        String   @id @default(cuid())
+  strategyId                String
+  strategy                  Strategy  @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  timestamp                 DateTime @default(now())
+  
+  // Market State
+  token1Price               Float    // Current price of token1 in USD
+  token2Price               Float    // Current price of token2 in USD
+  lpPrice                   Float    // Current LP price (token1/token2 ratio)
+  
+  // LP Position State
+  lpToken1Amount            Float    // Current token1 amount in LP
+  lpToken2Amount            Float    // Current token2 amount in LP
+  lpValueUsd                Float    // Total LP value in USD (calculated)
+  lpToken1FeesEarned        Float    @default(0) // Cumulative fees earned in token1
+  lpToken2FeesEarned        Float    @default(0) // Cumulative fees earned in token2
+  lpFeesUsd                 Float    @default(0) // Total fees in USD (calculated)
+  lpPnlUsd                  Float    // LP P&L vs entry (calculated)
+  
+  // Hedge Position State (Token1)
+  hedge1PositionSize        Float    // Position size (signed, negative = short)
+  hedge1EntryPrice          Float    // Entry price
+  hedge1Leverage            Float    // Leverage multiplier (e.g., 1.0x)
+  hedge1MarginUsd           Float    // Margin used for this position
+  hedge1PnlUsd              Float    // P&L for this position (calculated)
+  hedge1LiquidationPrice    Float?   // Liquidation price
+  hedge1FundingPaidUsd      Float    @default(0) // Cumulative funding paid for this position
+  
+  // Hedge Position State (Token2)
+  hedge2PositionSize        Float    // Position size (signed, negative = short)
+  hedge2EntryPrice          Float    // Entry price
+  hedge2Leverage            Float    // Leverage multiplier
+  hedge2MarginUsd           Float    // Margin used for this position
+  hedge2PnlUsd              Float    // P&L for this position (calculated)
+  hedge2LiquidationPrice    Float?   // Liquidation price
+  hedge2FundingPaidUsd      Float    @default(0) // Cumulative funding paid for this position
+  
+  // Account-Level Hedge Metrics
+  accountEquityUsd          Float    // Total account equity on exchange
+  marginUsedUsd            Float    // Total margin used (AUTO-CALCULATED: hedge1MarginUsd + hedge2MarginUsd)
+  fundingPaidUsd            Float    @default(0) // Total funding paid (AUTO-CALCULATED: hedge1FundingPaidUsd + hedge2FundingPaidUsd)
+  
+  // Calculated Analytics
+  totalHedgePnlUsd          Float    // Sum of hedge1 + hedge2 P&L
+  totalStrategyValueUsd     Float    // LP value + account equity
+  totalStrategyPnlUsd       Float    // vs starting capital
+  totalStrategyPnlPct       Float    // Percentage return
+  hedgeQualityScore         Float?   // How well hedge neutralizes LP delta
+  liquidationBufferPct      Float?   // Minimum buffer across both positions
+  
+  // Rebalance Suggestions (stored as JSON)
+  hedgeRebalanceSuggestion  String?  // JSON: suggestions for adjusting hedge positions
+  crossPositionRebalanceSuggestion String? // JSON: suggestion to move capital between LP and hedge
+  rebalanceReason          RebalanceReason @default(NONE)
+  
+  @@index([strategyId, timestamp])
+  @@index([timestamp])
+}
