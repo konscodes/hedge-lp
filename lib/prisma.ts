@@ -37,8 +37,15 @@ if (isTurso) {
     // Using type assertion to work around this
     const adapter = new PrismaLibSQL(libsql as any)
     
+    // When using an adapter, Prisma still needs DATABASE_URL for internal validation
+    // Pass it explicitly to avoid "URL 'undefined'" errors
     prismaClient = globalForPrisma.prisma ?? new PrismaClient({
       adapter: adapter,
+      datasources: {
+        db: {
+          url: databaseUrl, // Explicitly pass the URL even with adapter
+        },
+      },
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     })
     
