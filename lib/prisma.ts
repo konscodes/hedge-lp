@@ -19,6 +19,10 @@ if (isTurso) {
     const libsqlUrl = new URL(databaseUrl)
     const authToken = process.env.TURSO_AUTH_TOKEN || libsqlUrl.searchParams.get('authToken') || undefined
     
+    if (!authToken) {
+      console.warn('⚠️  TURSO_AUTH_TOKEN not found - connection may fail')
+    }
+    
     // Create LibSQL client with config object
     const libsqlConfig: { url: string; authToken?: string } = {
       url: databaseUrl,
@@ -37,12 +41,14 @@ if (isTurso) {
       adapter: adapter,
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     })
+    
+    if (!globalForPrisma.prisma) {
+      console.log('✅ LibSQL adapter initialized for Turso')
+    }
   } catch (error) {
-    console.error('Error setting up LibSQL adapter:', error)
-    // Fallback to regular PrismaClient (will fail at runtime if URL is invalid)
-    prismaClient = globalForPrisma.prisma ?? new PrismaClient({
-      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-    })
+    console.error('❌ Error setting up LibSQL adapter:', error)
+    // Don't fallback - throw error so we know what's wrong
+    throw new Error(`Failed to initialize LibSQL adapter: ${error instanceof Error ? error.message : String(error)}`)
   }
 } else {
   // For local SQLite file-based database
