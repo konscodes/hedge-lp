@@ -15,13 +15,6 @@ function getPrismaClient(): PrismaClient {
     throw new Error('DATABASE_URL environment variable is not set')
   }
 
-  // CRITICAL: Ensure DATABASE_URL is explicitly set in process.env
-  // Prisma reads it from process.env even when using an adapter
-  // This is necessary because Prisma validates the URL format before delegating to adapter
-  if (process.env.DATABASE_URL !== databaseUrl) {
-    process.env.DATABASE_URL = databaseUrl
-  }
-
   if (isTurso) {
     // For Turso, use LibSQL adapter
     try {
@@ -43,15 +36,27 @@ function getPrismaClient(): PrismaClient {
       const libsql = createClient(libsqlConfig)
       const adapter = new PrismaLibSQL(libsql as any)
       
-      // Debug: Log to verify DATABASE_URL is available
-      console.log('🔍 Initializing PrismaClient with adapter, DATABASE_URL:', databaseUrl.substring(0, 30) + '...')
+      // WORKAROUND: Prisma validates URL format based on schema provider (sqlite expects file://)
+      // But we're using libsql://. Set a dummy file:// URL for Prisma validation,
+      // then the adapter will use the real libsql:// URL from the LibSQL client
+      // Save original URL
+      const originalUrl = process.env.DATABASE_URL
       
-      // When using an adapter, Prisma reads DATABASE_URL from process.env automatically
-      // The adapter handles the actual connection
+      // Set dummy file:// URL for Prisma validation (it will validate but adapter uses real URL)
+      process.env.DATABASE_URL = 'file:./dummy.db'
+      
+      console.log('🔍 Initializing PrismaClient with adapter')
+      console.log('   Real URL:', databaseUrl.substring(0, 30) + '...')
+      console.log('   Dummy URL for validation:', process.env.DATABASE_URL)
+      
+      // When using an adapter, Prisma validates URL format but adapter uses LibSQL client's URL
       const client = new PrismaClient({
         adapter: adapter,
         log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
       })
+      
+      // Restore original URL
+      process.env.DATABASE_URL = originalUrl
       
       console.log('✅ PrismaClient created with LibSQL adapter')
       return client
