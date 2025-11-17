@@ -56,10 +56,17 @@ git push -u origin main
    - Go to "Connect" tab
    - Copy the connection string (looks like `libsql://your-db-name.turso.io`)
 
-3. **Add to Vercel**:
+3. **Get your auth token** (REQUIRED):
+   - Go to your Turso database dashboard
+   - Click on your database → "Settings" → "Tokens"
+   - Click "Create Token" or copy an existing token
+   - **Important:** Turso requires authentication - the connection will fail without this token
+
+4. **Add to Vercel**:
    - Go to your Vercel project → Settings → Environment Variables
-   - Add `DATABASE_URL` with your Turso connection string
-   - Make sure to add it for **Production**, **Preview**, and **Development** environments
+   - Add `DATABASE_URL` with your Turso connection string (e.g., `libsql://your-db-name.turso.io`)
+   - Add `TURSO_AUTH_TOKEN` with your Turso auth token
+   - Make sure to add both for **Production**, **Preview**, and **Development** environments
 
 **That's it!** No schema changes needed - Turso uses the same SQLite provider.
 
