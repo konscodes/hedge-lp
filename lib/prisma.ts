@@ -1,5 +1,6 @@
 import { PrismaClient } from './generated/prisma/client'
 import { createClient } from '@libsql/client'
+import { PrismaLibSQL } from '@prisma/adapter-libsql'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -17,8 +18,10 @@ if (isTurso) {
     url: databaseUrl,
   })
   
+  const adapter = new PrismaLibSQL(libsql)
+  
   prismaClient = globalForPrisma.prisma ?? new PrismaClient({
-    adapter: libsql,
+    adapter: adapter,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   })
 } else {
