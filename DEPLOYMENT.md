@@ -63,14 +63,36 @@ git push -u origin main
 
 **That's it!** No schema changes needed - Turso uses the same SQLite provider.
 
-### Step 3: Deploy
+### Step 3: Apply Database Schema to Turso
+
+**Important:** Prisma's SQLite provider validates URL format and requires `file:` protocol, so we need to apply the schema manually to Turso before deployment.
+
+**Option 1: Using Turso Dashboard (Easiest)**
+1. Go to your Turso database dashboard
+2. Click on your database → "Shell" or "Query" tab
+3. Copy and paste the SQL from `scripts/setup-turso-schema.sql`
+4. Run the SQL to create tables
+
+**Option 2: Using Turso CLI**
+```bash
+# Install Turso CLI if you haven't
+curl -sSfL https://get.tur.so/install.sh | bash
+
+# Apply schema
+turso db shell hedge-lp-konscodes < scripts/setup-turso-schema.sql
+```
+
+**Option 3: One-time SQL execution**
+You can also run the SQL directly in Turso dashboard's SQL editor.
+
+### Step 4: Deploy
 
 1. Vercel will automatically detect Next.js
-2. The `vercel.json` file configures the build command (includes Prisma migrations)
+2. The `vercel.json` file configures the build command
 3. Click "Deploy"
 4. Wait for build to complete
 
-**Migrations run automatically** - The build command includes `prisma migrate deploy`, so your database schema will be set up automatically on first deployment.
+**Note:** The build will skip schema deployment for Turso (to avoid Prisma validation errors) and only generate the Prisma client. Make sure you've applied the schema manually in Step 3.
 
 ## 🔧 Post-Deployment
 
