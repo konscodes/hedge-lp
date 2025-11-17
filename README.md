@@ -33,7 +33,7 @@ A comprehensive Next.js dashboard for managing and tracking delta-hedged liquidi
 - **shadcn/ui** - Modern UI component library
 - **Tailwind CSS** - Utility-first CSS framework
 - **Prisma** - Type-safe ORM
-- **SQLite** - Lightweight database (can be swapped for Postgres in production)
+- **SQLite** - Lightweight database (local development) + **Turso** (hosted SQLite for Vercel deployment)
 - **Recharts** - Charting library for data visualization
 - **Lucide React** - Icon library
 
@@ -185,70 +185,47 @@ The app will recalculate all derived metrics based on your changes.
 ### Prerequisites
 
 1. A Vercel account ([sign up here](https://vercel.com))
-2. A database (SQLite works for small projects, but consider Postgres for production)
+2. A Turso account ([sign up here](https://turso.tech)) - Free hosted SQLite
 
-### Deployment Steps
+### Quick Deployment Steps
 
-1. **Push your code to GitHub**:
+1. **Push your code to GitHub** (if not already done):
 ```bash
 git add .
 git commit -m "Initial commit"
 git push origin main
 ```
 
-2. **Import project in Vercel**:
+2. **Set up Turso database**:
+   - Go to [turso.tech](https://turso.tech) and sign in
+   - Create a new database
+   - Copy the connection string (looks like `libsql://your-db.turso.io`)
+
+3. **Import project in Vercel**:
    - Go to [vercel.com](https://vercel.com)
    - Click "Add New Project"
-   - Import your GitHub repository
+   - Import your GitHub repository (`konscodes/hedge-lp`)
 
-3. **Configure Environment Variables**:
-   - In Vercel project settings, go to "Environment Variables"
-   - Add `DATABASE_URL`:
-     - For SQLite (not recommended for production): Use a file-based URL
-     - For Postgres (recommended): Use your Postgres connection string
-       ```
-       DATABASE_URL="postgresql://user:password@host:5432/database?schema=public"
-       ```
-
-4. **Configure Build Settings**:
-   - Vercel will auto-detect Next.js
-   - The `vercel.json` file includes the build command with Prisma generation
-   - Ensure "Install Command" is set to `npm install`
+4. **Add Environment Variable**:
+   - In Vercel project settings → Environment Variables
+   - Add `DATABASE_URL` with your Turso connection string
+   - Make sure to add it for **Production**, **Preview**, and **Development**
 
 5. **Deploy**:
    - Click "Deploy"
-   - Vercel will build and deploy your application
+   - Vercel will automatically run Prisma migrations during build
+   - Wait for deployment to complete
 
-### Using Vercel Postgres (Recommended)
+**That's it!** Your app will be live. No schema changes needed - Turso uses the same SQLite provider.
 
-1. In your Vercel project, go to "Storage"
-2. Click "Create Database" → "Postgres"
-3. Copy the connection string
-4. Update your `DATABASE_URL` environment variable
-5. Update `prisma/schema.prisma` datasource:
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
-6. Run migrations:
-```bash
-npx prisma migrate deploy
-```
+### Why Turso?
 
-### Post-Deployment
+- ✅ **Same Prisma setup**: No code or schema changes needed
+- ✅ **Free tier**: Perfect for demos and small projects  
+- ✅ **Works on Vercel**: Unlike file-based SQLite, Turso works with serverless functions
+- ✅ **Simple**: Just copy-paste the connection string
 
-After deployment, run database migrations:
-```bash
-npx prisma migrate deploy
-```
-
-Or use Vercel's CLI:
-```bash
-vercel env pull
-npx prisma migrate deploy
-```
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
 
 ## 📁 Project Structure
 

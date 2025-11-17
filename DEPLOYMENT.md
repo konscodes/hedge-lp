@@ -41,71 +41,36 @@ git push -u origin main
 2. Click "Add New Project"
 3. Import your GitHub repository (`konscodes/hedge-lp`)
 
-### Step 2: Configure Environment Variables
+### Step 2: Set Up Turso (Hosted SQLite)
 
-In Vercel project settings → Environment Variables, add:
+**Why Turso?** SQLite file-based databases don't work on Vercel's serverless functions. Turso provides hosted SQLite with the same Prisma setup - no code changes needed!
 
-```
-DATABASE_URL=your_database_url_here
-```
+1. **Create a Turso database**:
+   - Go to [turso.tech](https://turso.tech) and sign in
+   - Click "Create Database"
+   - Choose a name and region
+   - Click "Create"
 
-**For Production (Recommended):**
-- Use Vercel Postgres:
-  1. Go to your Vercel project → Storage
-  2. Click "Create Database" → "Postgres"
-  3. Copy the connection string
-  4. Use it as `DATABASE_URL`
+2. **Get your connection string**:
+   - Click on your database
+   - Go to "Connect" tab
+   - Copy the connection string (looks like `libsql://your-db-name.turso.io`)
 
-**For Testing (SQLite - Not Recommended for Production):**
-- SQLite won't work well on Vercel's serverless functions
-- Consider using a hosted SQLite service or switch to Postgres
+3. **Add to Vercel**:
+   - Go to your Vercel project → Settings → Environment Variables
+   - Add `DATABASE_URL` with your Turso connection string
+   - Make sure to add it for **Production**, **Preview**, and **Development** environments
 
-### Step 3: Update Prisma Schema (if using Postgres)
+**That's it!** No schema changes needed - Turso uses the same SQLite provider.
 
-If you're using Postgres instead of SQLite, update `prisma/schema.prisma`:
-
-```prisma
-datasource db {
-  provider = "postgresql"  // Change from "sqlite"
-  url      = env("DATABASE_URL")
-}
-```
-
-Then commit and push:
-```bash
-git add prisma/schema.prisma
-git commit -m "Update schema for Postgres"
-git push
-```
-
-### Step 4: Deploy
+### Step 3: Deploy
 
 1. Vercel will automatically detect Next.js
-2. The `vercel.json` file configures the build command
+2. The `vercel.json` file configures the build command (includes Prisma migrations)
 3. Click "Deploy"
 4. Wait for build to complete
 
-### Step 5: Run Migrations
-
-After deployment, run database migrations:
-
-**Option 1: Using Vercel CLI**
-```bash
-npm i -g vercel
-vercel login
-vercel link
-vercel env pull .env.local
-npx prisma migrate deploy
-```
-
-**Option 2: Using Vercel Dashboard**
-- Go to your project → Settings → Environment Variables
-- Ensure `DATABASE_URL` is set
-- Use Vercel's CLI or connect via SSH to run migrations
-
-**Option 3: Add migration to build (already configured)**
-- The `vercel.json` already includes `prisma migrate deploy` in the build command
-- Migrations will run automatically on each deployment
+**Migrations run automatically** - The build command includes `prisma migrate deploy`, so your database schema will be set up automatically on first deployment.
 
 ## 🔧 Post-Deployment
 
@@ -122,6 +87,14 @@ npx prisma migrate deploy
    - Go to Project Settings → Domains
    - Add your custom domain
 
+## 💡 Why Turso Instead of Postgres?
+
+- **Same Prisma setup**: Uses SQLite provider, no schema changes needed
+- **Zero code changes**: Your existing code works as-is
+- **Free tier**: Perfect for demos and small projects
+- **Simple setup**: Just copy-paste the connection string
+- **Works on Vercel**: Unlike file-based SQLite, Turso works perfectly with serverless functions
+
 ## 🐛 Troubleshooting
 
 ### Build Fails
@@ -130,14 +103,16 @@ npx prisma migrate deploy
 - Ensure all dependencies are in `package.json`
 
 ### Database Connection Issues
-- Verify `DATABASE_URL` format is correct
-- For Postgres: Ensure connection string includes SSL parameters if needed
-- Check database is accessible from Vercel's IP ranges
+- Verify `DATABASE_URL` format is correct (should start with `libsql://`)
+- Check Turso dashboard to ensure database is active
+- Verify environment variable is set for the correct environment (Production/Preview/Development)
+- Try regenerating the connection string in Turso if needed
 
 ### Migration Issues
-- Run `prisma migrate deploy` manually after deployment
-- Check migration files are committed to Git
-- Verify database schema matches migrations
+- Migrations run automatically during build (configured in `vercel.json`)
+- If migrations fail, check Turso dashboard for database status
+- Verify `DATABASE_URL` is correctly set in Vercel environment variables
+- Check build logs in Vercel dashboard for migration errors
 
 ## 📝 Notes
 
