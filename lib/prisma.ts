@@ -6,60 +6,60 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-// Check if we're using Turso (LibSQL) or local SQLite
-const databaseUrl = process.env.DATABASE_URL || ''
-const isTurso = databaseUrl.startsWith('libsql://')
+function getPrismaClient(): PrismaClient {
+  // Always read from environment at runtime (important for serverless)
+  const databaseUrl = process.env.DATABASE_URL || ''
+  const isTurso = databaseUrl.startsWith('libsql://')
 
-let prismaClient: PrismaClient
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is not set')
+  }
 
-if (isTurso) {
-  // For Turso, use LibSQL adapter
-  // Extract auth token from URL if present, or use environment variable
-  try {
-    const libsqlUrl = new URL(databaseUrl)
-    const authToken = process.env.TURSO_AUTH_TOKEN || libsqlUrl.searchParams.get('authToken') || undefined
-    
-    if (!authToken) {
-      console.warn('⚠️  TURSO_AUTH_TOKEN not found - connection may fail')
+  if (isTurso) {
+    // For Turso, use LibSQL adapter
+    try {
+      const libsqlUrl = new URL(databaseUrl)
+      const authToken = process.env.TURSO_AUTH_TOKEN || libsqlUrl.searchParams.get('authToken') || undefined
+      
+      if (!authToken) {
+        console.warn('⚠️  TURSO_AUTH_TOKEN not found - connection may fail')
+      }
+      
+      // Create LibSQL client with config object
+      const libsqlConfig: { url: string; authToken?: string } = {
+        url: databaseUrl,
+      }
+      if (authToken) {
+        libsqlConfig.authToken = authToken
+      }
+      
+      const libsql = createClient(libsqlConfig)
+      const adapter = new PrismaLibSQL(libsql as any)
+      
+      // When using an adapter, Prisma reads DATABASE_URL from process.env automatically
+      // The adapter handles the actual connection
+      return new PrismaClient({
+        adapter: adapter,
+        log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+      })
+    } catch (error) {
+      console.error('❌ Error setting up LibSQL adapter:', error)
+      throw new Error(`Failed to initialize LibSQL adapter: ${error instanceof Error ? error.message : String(error)}`)
     }
-    
-    // Create LibSQL client with config object
-    const libsqlConfig: { url: string; authToken?: string } = {
-      url: databaseUrl,
-    }
-    if (authToken) {
-      libsqlConfig.authToken = authToken
-    }
-    
-    const libsql = createClient(libsqlConfig)
-    
-    // PrismaLibSQL expects the client, but TypeScript types might be mismatched
-    // Using type assertion to work around this
-    const adapter = new PrismaLibSQL(libsql as any)
-    
-    // When using an adapter, Prisma gets the connection from the adapter itself
-    // Do NOT pass datasources config - it's incompatible with adapters
-    // The adapter handles the connection, and Prisma reads DATABASE_URL from env for validation
-    prismaClient = globalForPrisma.prisma ?? new PrismaClient({
-      adapter: adapter,
+  } else {
+    // For local SQLite file-based database
+    return new PrismaClient({
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     })
-    
-    if (!globalForPrisma.prisma) {
-      console.log('✅ LibSQL adapter initialized for Turso')
-    }
-  } catch (error) {
-    console.error('❌ Error setting up LibSQL adapter:', error)
-    // Don't fallback - throw error so we know what's wrong
-    throw new Error(`Failed to initialize LibSQL adapter: ${error instanceof Error ? error.message : String(error)}`)
   }
-} else {
-  // For local SQLite file-based database
-  prismaClient = globalForPrisma.prisma ?? new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-  })
 }
 
-export const prisma = prismaClient
+// Use singleton pattern for serverless (reuse client across invocations)
+export const prisma = globalForPrisma.prisma ?? getPrismaClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma
+} else {
+  // In production (serverless), also cache to avoid re-initialization
+  globalForPrisma.prisma = prisma
+}
