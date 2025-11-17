@@ -9,6 +9,7 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
   },
+  // Use node-api engine for Turso, classic for local SQLite
   engine: isTurso ? "node-api" : "classic",
   datasource: {
     url: databaseUrl,

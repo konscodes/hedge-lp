@@ -12,17 +12,13 @@ const isTurso = databaseUrl.startsWith('libsql://')
 let prismaClient: PrismaClient
 
 if (isTurso) {
-  // For Turso, create LibSQL client and pass it to Prisma
+  // For Turso, use LibSQL adapter
   const libsql = createClient({
     url: databaseUrl,
   })
   
   prismaClient = globalForPrisma.prisma ?? new PrismaClient({
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
+    adapter: libsql,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   })
 } else {
@@ -35,4 +31,3 @@ if (isTurso) {
 export const prisma = prismaClient
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
-
