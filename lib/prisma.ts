@@ -8,28 +8,41 @@ const globalForPrisma = globalThis as unknown as {
 
 function getPrismaClient(): PrismaClient {
   // Always read from environment at runtime (important for serverless)
-  const databaseUrl = process.env.DATABASE_URL || ''
+  let databaseUrl = process.env.DATABASE_URL || ''
   const isTurso = databaseUrl.startsWith('libsql://')
 
   if (!databaseUrl) {
     throw new Error('DATABASE_URL environment variable is not set')
   }
 
-  console.log('🔍 getPrismaClient called, DATABASE_URL:', databaseUrl.substring(0, 30) + '...')
+  console.log('🔍 getPrismaClient called')
+  console.log('   Original DATABASE_URL:', databaseUrl.substring(0, 40) + '...')
+  console.log('   Is Turso:', isTurso)
 
   if (isTurso) {
     // For Turso, use LibSQL adapter
     try {
-      const libsqlUrl = new URL(databaseUrl)
+      // CRITICAL: Save original URL before modifying process.env
+      const originalLibsqlUrl = databaseUrl
+      
+      // Set valid file:// URL FIRST - Prisma validates URL format based on schema provider
+      // The schema says provider="sqlite" which expects file:// protocol
+      // We MUST set this BEFORE creating PrismaClient, and keep it set
+      process.env.DATABASE_URL = 'file:./.tmp/dummy.db'
+      
+      console.log('   Set validation URL:', process.env.DATABASE_URL)
+      console.log('   LibSQL URL (for adapter):', originalLibsqlUrl.substring(0, 40) + '...')
+      
+      const libsqlUrl = new URL(originalLibsqlUrl)
       const authToken = process.env.TURSO_AUTH_TOKEN || libsqlUrl.searchParams.get('authToken') || undefined
       
       if (!authToken) {
         console.warn('⚠️  TURSO_AUTH_TOKEN not found - connection may fail')
       }
       
-      // Create LibSQL client with config object
+      // Create LibSQL client with REAL libsql:// URL
       const libsqlConfig: { url: string; authToken?: string } = {
-        url: databaseUrl,
+        url: originalLibsqlUrl, // Use original libsql:// URL
       }
       if (authToken) {
         libsqlConfig.authToken = authToken
@@ -38,30 +51,18 @@ function getPrismaClient(): PrismaClient {
       const libsql = createClient(libsqlConfig)
       const adapter = new PrismaLibSQL(libsql as any)
       
-      // CRITICAL: Prisma reads DATABASE_URL from process.env when queries execute
-      // Ensure it's set before creating PrismaClient AND keep it set
-      // The adapter uses LibSQL client's URL, but Prisma still validates DATABASE_URL
-      // Use a valid file:// URL for validation (Prisma expects this for sqlite provider)
-      const originalUrl = process.env.DATABASE_URL
-      
-      // Set valid file:// URL - Prisma will validate this format
-      // The adapter will use the LibSQL client's URL for actual connection
-      process.env.DATABASE_URL = 'file:./.tmp/dummy.db'
-      
-      console.log('🔍 Creating PrismaClient with adapter')
-      console.log('   LibSQL URL:', databaseUrl.substring(0, 30) + '...')
-      console.log('   Validation URL:', process.env.DATABASE_URL)
-      
+      // Prisma will validate DATABASE_URL (now file://) but adapter uses LibSQL client's URL
       const client = new PrismaClient({
         adapter: adapter,
         log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
       })
       
-      // IMPORTANT: Keep the file:// URL set - Prisma may read it during queries
-      // Don't restore original URL - Prisma needs valid format for validation
-      // The adapter handles the actual connection using LibSQL client
+      // CRITICAL: Keep file:// URL set - Prisma reads it during queries
+      // The adapter uses LibSQL client's URL for actual connection
+      // DO NOT restore original URL - Prisma needs file:// format for validation
       
       console.log('✅ PrismaClient created with LibSQL adapter')
+      console.log('   DATABASE_URL remains:', process.env.DATABASE_URL)
       return client
     } catch (error) {
       console.error('❌ Error setting up LibSQL adapter:', error)
