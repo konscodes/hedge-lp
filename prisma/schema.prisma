@@ -3,13 +3,14 @@
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
   output   = "../lib/generated/prisma"
 }
 
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+  // Note: For Turso (libsql://), Prisma will use the LibSQL adapter configured in lib/prisma.ts
+  // The adapter handles LibSQL URLs at runtime, while migrations work with Turso's migration support
 }
 
 model Strategy {
